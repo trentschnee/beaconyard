@@ -16,6 +16,7 @@ let mongod: MongoMemoryServer;
 let client: MongoClient;
 let db: Db;
 let logger: jest.Mocked<Logger>;
+let changes: jest.Mock<void, [DeviceState]>;
 let handle: HeartbeatHandler;
 
 beforeAll(async () => {
@@ -42,11 +43,13 @@ beforeEach(async () => {
   await events().deleteMany({});
   await rejects().deleteMany({});
   logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+  changes = jest.fn();
   handle = createHeartbeatHandler({
     events: createEventStore(db),
     devices: createDeviceStore(db),
     rejects: createRejectStore(db),
     logger,
+    onDeviceChanged: changes,
   });
 });
 
@@ -284,6 +287,7 @@ describe('heartbeat handler', () => {
       devices: { applyHeartbeat: () => Promise.reject(err) },
       rejects: createRejectStore(db),
       logger,
+      onDeviceChanged: changes,
     });
 
     await expect(
@@ -305,6 +309,7 @@ describe('heartbeat handler', () => {
       devices: createDeviceStore(db),
       rejects: { insert: () => Promise.reject(err) },
       logger,
+      onDeviceChanged: changes,
     });
 
     await expect(
@@ -366,6 +371,7 @@ describe('heartbeat handler', () => {
       devices: createDeviceStore(db),
       rejects: createRejectStore(db),
       logger,
+      onDeviceChanged: changes,
     });
 
     await expect(
@@ -378,5 +384,107 @@ describe('heartbeat handler', () => {
       expect.objectContaining({ topic: 'devices/dev-1/heartbeat', err }),
     );
     expect(await rejects().countDocuments()).toBe(0);
+  });
+
+  it('S04: a heartbeat that changes state reports the new state once', async () => {
+    await send('dev-1', seq5);
+    await send('dev-1', { ...seq6, firmware: '1.2' });
+
+    expect(changes.mock.calls).toEqual([
+      [{ deviceId: 'dev-1', ...seq5 }],
+      [{ deviceId: 'dev-1', ...seq6 }],
+    ]);
+  });
+
+  it('S04-AT4: duplicate and stale heartbeats report no change', async () => {
+    await send('dev-1', seq5);
+    changes.mockClear();
+
+    await send('dev-1', seq5);
+    // same message ID with a different body
+    await send('dev-1', { ...seq6, seq: 5 });
+    await send('dev-1', seq4);
+
+    expect(changes).not.toHaveBeenCalled();
+    expect(await stateOf('dev-1')).toEqual({ deviceId: 'dev-1', ...seq5 });
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('S04-AT4: two copies of a heartbeat handled concurrently report one change', async () => {
+    // both copies of a brand-new device race to insert, and the loser's
+    // server-side retry must come back as unmodified
+    const ids: string[] = [];
+    for (const seeded of [false, true]) {
+      for (let round = 0; round < 25; round++) {
+        const id = `dup-${seeded ? 'seeded' : 'new'}-${round}`;
+        ids.push(id);
+        if (seeded) {
+          await send(id, seq4);
+        }
+        await Promise.all([send(id, seq5), send(id, seq5)]);
+      }
+    }
+
+    expect(logger.error).not.toHaveBeenCalled();
+    for (const id of ids) {
+      const reported = changes.mock.calls
+        .map(([state]) => state)
+        .filter((state) => state.deviceId === id && state.seq === 5);
+      expect(reported).toEqual([{ deviceId: id, ...seq5 }]);
+    }
+  });
+
+  it('S04-AT4: seq 5 and 6 handled concurrently always report seq 6, and seq 5 at most once', async () => {
+    const ids: string[] = [];
+    for (const order of [
+      [seq5, seq6],
+      [seq6, seq5],
+    ]) {
+      for (let round = 0; round < 25; round++) {
+        const id = `race-${order[0].seq}-first-${round}`;
+        ids.push(id);
+        await Promise.all(order.map((body) => send(id, body)));
+      }
+    }
+
+    expect(logger.error).not.toHaveBeenCalled();
+    for (const id of ids) {
+      const seqs = changes.mock.calls
+        .map(([state]) => state)
+        .filter((state) => state.deviceId === id)
+        .map((state) => state.seq);
+      // 5 is only reported if it landed before 6
+      expect([[6], [5, 6], [6, 5]]).toContainEqual(seqs);
+      expect(Math.max(...seqs)).toBe((await stateOf(id))?.seq);
+    }
+  });
+
+  it('S04-AT7: a broadcast that throws still stores the heartbeat and logs an error', async () => {
+    const err = new Error('broadcast blew up');
+    const failing = createHeartbeatHandler({
+      events: createEventStore(db),
+      devices: createDeviceStore(db),
+      rejects: createRejectStore(db),
+      logger,
+      onDeviceChanged: () => {
+        throw err;
+      },
+    });
+
+    await expect(
+      failing(topicFor('dev-1'), Buffer.from(JSON.stringify(seq5))),
+    ).resolves.toBeUndefined();
+
+    expect(await stateOf('dev-1')).toEqual({ deviceId: 'dev-1', ...seq5 });
+    expect(await eventsOf('dev-1')).toEqual([{ deviceId: 'dev-1', ...seq5 }]);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        topic: 'devices/dev-1/heartbeat',
+        deviceId: 'dev-1',
+        err,
+      }),
+    );
   });
 });

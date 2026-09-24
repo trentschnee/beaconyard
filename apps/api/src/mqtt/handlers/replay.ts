@@ -1,5 +1,6 @@
 import {
   parseReplayBatch,
+  type DeviceState,
   type Heartbeat,
   type ReplayEntryError,
 } from '@beaconyard/contracts';
@@ -18,6 +19,9 @@ export interface ReplayDeps {
   devices: Pick<DeviceStore, 'applyHeartbeat'>;
   rejects: Pick<RejectStore, 'insert' | 'insertMany'>;
   logger: Logger;
+  // called after a write that changed the device's state. Must not block;
+  // a throw is logged and ingest carries on.
+  onDeviceChanged: (state: DeviceState) => void;
 }
 
 export type ReplayHandler = (
@@ -46,6 +50,7 @@ export function createReplayHandler({
   devices,
   rejects,
   logger,
+  onDeviceChanged,
 }: ReplayDeps): ReplayHandler {
   async function reject(topic: string, payload: string, reason: string) {
     logger.warn('replay rejected', { topic, reason });
@@ -82,6 +87,19 @@ export function createReplayHandler({
     }
   }
 
+  // by now the batch is stored, so a broadcast failure only gets logged
+  function notify(topic: string, state: DeviceState) {
+    try {
+      onDeviceChanged(state);
+    } catch (err) {
+      logger.error('device broadcast failed', {
+        topic,
+        deviceId: state.deviceId,
+        err,
+      });
+    }
+  }
+
   // never throws: a bad batch or a Mongo failure is logged and dropped so the
   // mqtt client keeps going
   return async (topic, payload) => {
@@ -112,9 +130,16 @@ export function createReplayHandler({
       // Events first, so state never shows a seq that history doesn't have.
       // Applying only the highest seq leaves the same state as applying every
       // entry in turn, since the highest seq wins either way. Duplicates and
-      // stale seqs are a no-op in both stores, not an error.
+      // stale seqs are a no-op in both stores, not an error. One state write
+      // per batch also means at most one broadcast per batch.
       await events.record(deviceId, unique);
-      await devices.applyHeartbeat(deviceId, highestSeq(unique));
+      const changed = await devices.applyHeartbeat(
+        deviceId,
+        highestSeq(unique),
+      );
+      if (changed) {
+        notify(topic, changed);
+      }
     } catch (err) {
       logger.error('replay handling failed', { topic, err });
     }

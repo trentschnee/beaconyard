@@ -17,12 +17,13 @@ Nx 23 + pnpm 11, single-package workspace: one npm script (`pnpm run eval`), no 
 - Serve: `npx nx serve api` (builds, then runs `dist/apps/api/main.js`), `npx nx serve web` (Angular dev server on :4200)
 - Local infra: `docker compose up -d` starts Mosquitto (1883 for the api, 1884 for evals, isolated by `mount_point eval/`, anonymous, dev only) and Mongo (27017).
 - Evals: `pnpm run eval` runs every scenario in `evals/scenarios/`. `pnpm run eval -- <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
+- Dashboard: `DASHBOARD_ENABLED=true npx nx serve api` and `npx nx serve web`, then open http://localhost:4200. The web dev server proxies `/ws` to the api on port 3000.
 - <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
 - Full gate before handing back: `/verify`
 
 ## Architecture
 
-- `apps/api`: Fastify service. Subscribes to MQTT, reconciles device state in Mongo, and serves the dashboard's WebSocket feed. `fastify` is not installed yet.
+- `apps/api`: Fastify service. Subscribes to MQTT, reconciles device state in Mongo, and serves the dashboard's WebSocket feed.
   - `src/mqtt/handlers/`: one file per topic, each with a matching test
   - `src/store/`: all Mongo reads and writes
   - `src/ws/`: WebSocket server for the dashboard
@@ -36,7 +37,6 @@ Nx 23 + pnpm 11, single-package workspace: one npm script (`pnpm run eval`), no 
 - Source uses ESM syntax (`import`/`export`). Build output format is owned by the Nx config (currently CJS for api). Do not change `module`, `moduleResolution`, or esbuild `format` settings without a decision record in `decisions/`.
 - All projects compile with `strict: true`. `web` and `contracts` also use `noPropertyAccessFromIndexSignature`, `noImplicitReturns`, `noImplicitOverride`; web also has Angular `strictTemplates`.
 - Message identity is device ID plus device-local `seq` (see `decisions/001-message-id.md`). Event time comes from the message's `ts`, never from server clock.
-- `apps/web/src/app/app.spec.ts` asserts on the NxWelcome `h1`. Removing `nx-welcome.ts` means updating that test.
 
 ## Workflow
 

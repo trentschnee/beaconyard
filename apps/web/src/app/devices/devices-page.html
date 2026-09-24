@@ -1,0 +1,36 @@
+<header>
+  <h1>Devices</h1>
+  <p class="connection" role="status" [attr.data-status]="status()">
+    {{ status() }}
+  </p>
+</header>
+
+<table>
+  <thead>
+    <tr>
+      <th scope="col">Device ID</th>
+      <th scope="col">Status</th>
+      <th scope="col">Battery</th>
+      <th scope="col">Last seen</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (device of devices(); track device.deviceId) {
+    <tr>
+      <td>{{ device.deviceId }}</td>
+      <td [attr.data-status]="device.status">{{ device.status }}</td>
+      <td>{{ device.battery }}%</td>
+      <!-- DatePipe formats in the browser's time zone -->
+      <td>
+        <time [attr.datetime]="device.ts"
+          >{{ device.ts | date: 'yyyy-MM-dd HH:mm:ss' }}</time
+        >
+      </td>
+    </tr>
+    } @empty {
+    <tr>
+      <td class="empty" colspan="4">No devices yet</td>
+    </tr>
+    }
+  </tbody>
+</table>

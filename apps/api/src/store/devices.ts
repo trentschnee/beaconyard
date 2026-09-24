@@ -3,7 +3,10 @@ import type { DeviceState, Heartbeat } from '@beaconyard/contracts';
 
 export interface DeviceStore {
   ensureIndexes(): Promise<void>;
-  applyHeartbeat(deviceId: string, hb: Heartbeat): Promise<void>;
+  // the device's new state if this write changed it, null if it didn't
+  applyHeartbeat(deviceId: string, hb: Heartbeat): Promise<DeviceState | null>;
+  // every device, for the dashboard snapshot
+  list(): Promise<DeviceState[]>;
 }
 
 export function createDeviceStore(db: Db): DeviceStore {
@@ -32,13 +35,19 @@ export function createDeviceStore(db: Db): DeviceStore {
     // Every $cond in one $set stage reads the pre-update doc, so the four
     // fields always move together. A new device starts as { deviceId } from
     // the filter and its missing seq counts as 0.
+    //
+    // Whether state changed comes from this write's own result, not a second
+    // read. A stale or duplicate seq sets every field to what's already
+    // stored, the doc comes out byte-identical, and Mongo counts it as not
+    // modified. So upserted or modified means the heartbeat won, and then the
+    // stored state is exactly the heartbeat's fields.
     async applyHeartbeat(deviceId, hb) {
       const isNewer = { $lt: [{ $ifNull: ['$seq', 0] }, hb.seq] };
       const pick = (field: keyof Heartbeat) => ({
         $cond: [isNewer, { $literal: hb[field] }, `$${field}`],
       });
 
-      await devices.updateOne(
+      const result = await devices.updateOne(
         { deviceId },
         [
           {
@@ -52,6 +61,18 @@ export function createDeviceStore(db: Db): DeviceStore {
         ],
         { upsert: true },
       );
+
+      if (result.upsertedCount + result.modifiedCount === 0) {
+        return null;
+      }
+      const { seq, ts, battery, status } = hb;
+      return { deviceId, seq, ts, battery, status };
+    },
+
+    async list() {
+      return devices
+        .find({}, { projection: { _id: 0 }, sort: { deviceId: 1 } })
+        .toArray();
     },
   };
 }

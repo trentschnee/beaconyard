@@ -40,7 +40,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): EvalConfig {
 }
 
 // env for the api child. DB name and client ID always win over whatever the
-// parent shell has set.
+// parent shell has set. HTTP_PORT 0 lets the OS pick a free port, so the eval
+// api never collides with a dev api holding 3000 (spec 04).
 export function apiEnv(
   config: EvalConfig,
   parentEnv: NodeJS.ProcessEnv = process.env,
@@ -51,5 +52,6 @@ export function apiEnv(
     MONGO_URL: config.mongoUrl,
     MONGO_DB: EVAL_DB,
     MQTT_CLIENT_ID: EVAL_CLIENT_ID,
+    HTTP_PORT: '0',
   };
 }

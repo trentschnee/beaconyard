@@ -24,6 +24,7 @@ let mongod: MongoMemoryServer;
 let client: MongoClient;
 let db: Db;
 let logger: jest.Mocked<Logger>;
+let changes: jest.Mock<void, [DeviceState]>;
 let replay: ReplayHandler;
 let live: HeartbeatHandler;
 
@@ -48,12 +49,14 @@ beforeEach(async () => {
   await events().deleteMany({});
   await rejects().deleteMany({});
   logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
+  changes = jest.fn();
   replay = makeReplay();
   live = createHeartbeatHandler({
     events: createEventStore(db),
     devices: createDeviceStore(db),
     rejects: createRejectStore(db),
     logger,
+    onDeviceChanged: changes,
   });
 });
 
@@ -67,6 +70,7 @@ function makeReplay(overrides: Partial<ReplayDeps> = {}) {
     devices: createDeviceStore(db),
     rejects: createRejectStore(db),
     logger,
+    onDeviceChanged: changes,
     ...overrides,
   });
 }
@@ -495,6 +499,65 @@ describe('replay handler', () => {
       expect.objectContaining({
         topic: 'devices/dev-1/replay',
         reason: expect.stringMatching(/^batch: /),
+        err,
+      }),
+    );
+  });
+
+  it('S04-AT5: a batch that changes state reports once, with the first copy of its highest seq', async () => {
+    await seedAt1();
+
+    expect(changes.mock.calls).toEqual([
+      // the live seq 5 that seeds the fixture
+      [{ deviceId: 'dev-1', ...hb(5) }],
+      [{ deviceId: 'dev-1', ...firstCopy(21) }],
+    ]);
+  });
+
+  it('S04-AT4: the same batch delivered twice reports only the first time', async () => {
+    await seedAt1();
+    changes.mockClear();
+
+    await sendReplay('dev-1', at1Batch);
+
+    expect(changes).not.toHaveBeenCalled();
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('S04-AT4: a batch with nothing newer than the stored state reports no change', async () => {
+    await sendLive('dev-1', hb(10));
+    changes.mockClear();
+
+    await sendReplay('dev-1', [hb(3), hb(7), hb(10), hb(9)]);
+
+    expect(changes).not.toHaveBeenCalled();
+    expect(await stateOf('dev-1')).toEqual({ deviceId: 'dev-1', ...hb(10) });
+    expect((await eventsOf('dev-1')).map((e) => e.seq)).toEqual([3, 7, 9, 10]);
+  });
+
+  it('S04-AT7: a broadcast that throws still stores the batch and logs an error', async () => {
+    const err = new Error('broadcast blew up');
+    const failing = makeReplay({
+      onDeviceChanged: () => {
+        throw err;
+      },
+    });
+
+    await expect(
+      failing(
+        replayTopic('dev-1'),
+        Buffer.from(JSON.stringify([hb(1), hb(2)])),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(await stateOf('dev-1')).toEqual({ deviceId: 'dev-1', ...hb(2) });
+    expect((await eventsOf('dev-1')).map((e) => e.seq)).toEqual([1, 2]);
+    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        topic: 'devices/dev-1/replay',
+        deviceId: 'dev-1',
         err,
       }),
     );
