@@ -119,4 +119,4 @@ CLAUDE.md         the agent's standing instructions
 REVIEW-LOG.md     what review caught
 ```
 
-Built by Trent Schnee as a portfolio project for a Full Stack Agentic Development Engineer role.
+Built by [@trentschnee](https://github.com/trentschnee) as a portfolio project for a Full Stack Agentic Development Engineer role.
