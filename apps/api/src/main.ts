@@ -1,5 +1,7 @@
 import { MongoClient } from 'mongodb';
+import { createLowBatteryRule } from './alerts/low-battery';
 import { loadConfig } from './config';
+import { createDeviceChangedListener } from './device-changed';
 import type { Logger } from './logger';
 import { startMqtt } from './mqtt/client';
 import {
@@ -8,6 +10,7 @@ import {
 } from './mqtt/handlers/heartbeat';
 import { createReplayHandler, REPLAY_TOPIC } from './mqtt/handlers/replay';
 import { createServer } from './server';
+import { createAlertStateStore } from './store/alert-states';
 import { createDeviceStore } from './store/devices';
 import { createEventStore } from './store/events';
 import { createRejectStore } from './store/rejects';
@@ -25,16 +28,30 @@ async function main() {
   const devices = createDeviceStore(db);
   const events = createEventStore(db);
   const rejects = createRejectStore(db);
+  const alertStates = createAlertStateStore(db);
   // before connecting: the broker hands over its queued backlog right after
-  // CONNACK, and the events index is what keeps those writes idempotent
+  // CONNACK, and these unique indexes are what keep those writes idempotent
   await devices.ensureIndexes();
   await events.ensureIndexes();
+  await alertStates.ensureIndexes();
 
-  // with the flag off there's no hub and nobody to tell about changes
+  // with the flag off there's no hub, but alerts still run
   const dashboard = config.dashboardEnabled
     ? createDashboardHub({ devices, logger })
     : undefined;
-  const onDeviceChanged = dashboard ? dashboard.publish : () => undefined;
+  const lowBattery = createLowBatteryRule({
+    alertStates,
+    logger,
+    lowBatteryBelow: config.alertLowBatteryBelow,
+    rearmAt: config.alertRearmAt,
+    // mqtt is assigned below. startMqtt returns before it connects, and no
+    // message (so no alert) can arrive until it has.
+    publish: (topic, payload, opts) => mqtt.publishAsync(topic, payload, opts),
+  });
+  const onDeviceChanged = createDeviceChangedListener({
+    dashboard,
+    lowBattery,
+  });
 
   // listen before ingest starts, so a port clash stops startup instead of
   // leaving a half-running api
