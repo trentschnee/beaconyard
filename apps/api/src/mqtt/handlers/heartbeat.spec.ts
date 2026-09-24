@@ -1,9 +1,14 @@
 import * as os from 'node:os';
 import { MongoClient, MongoNetworkError, type Db } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import type { DeviceState, RejectedMessage } from '@beaconyard/contracts';
+import type {
+  DeviceState,
+  EventRecord,
+  RejectedMessage,
+} from '@beaconyard/contracts';
 import type { Logger } from '../../logger';
 import { createDeviceStore } from '../../store/devices';
+import { createEventStore } from '../../store/events';
 import { createRejectStore } from '../../store/rejects';
 import { createHeartbeatHandler, type HeartbeatHandler } from './heartbeat';
 
@@ -24,6 +29,7 @@ beforeAll(async () => {
   });
   db = client.db('heartbeat-spec');
   await createDeviceStore(db).ensureIndexes();
+  await createEventStore(db).ensureIndexes();
 }, 30_000);
 
 afterAll(async () => {
@@ -33,9 +39,11 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await devices().deleteMany({});
+  await events().deleteMany({});
   await rejects().deleteMany({});
   logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
   handle = createHeartbeatHandler({
+    events: createEventStore(db),
     devices: createDeviceStore(db),
     rejects: createRejectStore(db),
     logger,
@@ -43,6 +51,7 @@ beforeEach(async () => {
 });
 
 const devices = () => db.collection<DeviceState>('devices');
+const events = () => db.collection<EventRecord>('events');
 const rejects = () => db.collection<RejectedMessage>('rejects');
 
 // every field differs between seqs so a test can tell which message won
@@ -74,6 +83,12 @@ function send(deviceId: string, body: object) {
 
 function stateOf(deviceId: string) {
   return devices().findOne({ deviceId }, { projection: { _id: 0 } });
+}
+
+function eventsOf(deviceId: string) {
+  return events()
+    .find({ deviceId }, { projection: { _id: 0 }, sort: { seq: 1 } })
+    .toArray();
 }
 
 function allRejects() {
@@ -265,6 +280,7 @@ describe('heartbeat handler', () => {
   it('logs a Mongo error on a valid message at error level without creating a reject', async () => {
     const err = new MongoNetworkError('connection lost');
     const failing = createHeartbeatHandler({
+      events: createEventStore(db),
       devices: { applyHeartbeat: () => Promise.reject(err) },
       rejects: createRejectStore(db),
       logger,
@@ -285,6 +301,7 @@ describe('heartbeat handler', () => {
   it('does not throw when storing a reject fails, and logs the topic and reason', async () => {
     const err = new MongoNetworkError('connection lost');
     const failing = createHeartbeatHandler({
+      events: createEventStore(db),
       devices: createDeviceStore(db),
       rejects: { insert: () => Promise.reject(err) },
       logger,
@@ -305,5 +322,61 @@ describe('heartbeat handler', () => {
         err,
       }),
     );
+  });
+
+  it('S02-AT6: a live heartbeat writes one event, and sending it twice still leaves one', async () => {
+    await send('dev-1', { ...seq5, firmware: '1.2', deviceId: 'spoofed' });
+
+    expect(await eventsOf('dev-1')).toEqual([{ deviceId: 'dev-1', ...seq5 }]);
+
+    await send('dev-1', seq5);
+    // same message ID with a different body: the first copy stays
+    await send('dev-1', { ...seq6, seq: 5 });
+
+    expect(await events().countDocuments()).toBe(1);
+    expect(await eventsOf('dev-1')).toEqual([{ deviceId: 'dev-1', ...seq5 }]);
+    expect(await rejects().countDocuments()).toBe(0);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('S02-AT7: seq 3 after seq 5 is stored as an event and leaves state at seq 5', async () => {
+    const seq3 = {
+      seq: 3,
+      ts: '2026-09-23T10:03:00Z',
+      battery: 10,
+      status: 'warning',
+    } as const;
+
+    await send('dev-1', seq5);
+    await send('dev-1', seq3);
+
+    expect(await eventsOf('dev-1')).toEqual([
+      { deviceId: 'dev-1', ...seq3 },
+      { deviceId: 'dev-1', ...seq5 },
+    ]);
+    expect(await stateOf('dev-1')).toEqual({ deviceId: 'dev-1', ...seq5 });
+    expect(await rejects().countDocuments()).toBe(0);
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('writes the event before state: a failed event write leaves state untouched', async () => {
+    const err = new MongoNetworkError('connection lost');
+    const failing = createHeartbeatHandler({
+      events: { record: () => Promise.reject(err) },
+      devices: createDeviceStore(db),
+      rejects: createRejectStore(db),
+      logger,
+    });
+
+    await expect(
+      failing(topicFor('dev-1'), Buffer.from(JSON.stringify(seq5))),
+    ).resolves.toBeUndefined();
+
+    expect(await devices().countDocuments()).toBe(0);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ topic: 'devices/dev-1/heartbeat', err }),
+    );
+    expect(await rejects().countDocuments()).toBe(0);
   });
 });

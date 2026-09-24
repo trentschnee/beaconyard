@@ -1,6 +1,7 @@
 import { parseHeartbeat } from '@beaconyard/contracts';
 import type { Logger } from '../../logger';
 import type { DeviceStore } from '../../store/devices';
+import type { EventStore } from '../../store/events';
 import type { RejectStore } from '../../store/rejects';
 
 export const HEARTBEAT_TOPIC = 'devices/+/heartbeat';
@@ -9,8 +10,9 @@ export const HEARTBEAT_TOPIC = 'devices/+/heartbeat';
 const TOPIC_PATTERN = /^devices\/([^/]+)\/heartbeat$/;
 
 export interface HeartbeatDeps {
+  events: Pick<EventStore, 'record'>;
   devices: Pick<DeviceStore, 'applyHeartbeat'>;
-  rejects: RejectStore;
+  rejects: Pick<RejectStore, 'insert'>;
   logger: Logger;
 }
 
@@ -20,6 +22,7 @@ export type HeartbeatHandler = (
 ) => Promise<void>;
 
 export function createHeartbeatHandler({
+  events,
   devices,
   rejects,
   logger,
@@ -60,7 +63,10 @@ export function createHeartbeatHandler({
         return;
       }
 
-      // stale and duplicate seqs are a no-op in the store, not an error
+      // Event first, so state never shows a seq that history doesn't have. If
+      // the event write throws, state is left alone. Stale and duplicate seqs
+      // are a no-op in both stores, not an error.
+      await events.record(deviceId, [parsed.value]);
       await devices.applyHeartbeat(deviceId, parsed.value);
     } catch (err) {
       logger.error('heartbeat handling failed', { topic, err });
