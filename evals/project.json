@@ -1,0 +1,24 @@
+{
+  "name": "evals",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "evals/src",
+  "projectType": "application",
+  "tags": [],
+  "targets": {
+    "test": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "inputs": ["default"],
+      "options": {
+        "command": "node --test \"evals/src/**/*.spec.mts\""
+      }
+    },
+    "acceptance": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "options": {
+        "command": "node --test --test-concurrency=1 evals/acceptance/eval.acceptance.mts"
+      }
+    }
+  }
+}

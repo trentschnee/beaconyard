@@ -1,0 +1,68 @@
+{
+  "name": "clean",
+  "description": "Heartbeats that arrive once and in order each become one event, and state ends at the last one.",
+  "messages": [
+    {
+      "topic": "devices/clean-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    },
+    {
+      "topic": "devices/clean-1/heartbeat",
+      "payload": {
+        "seq": 2,
+        "ts": "2026-09-24T10:01:00Z",
+        "battery": 89,
+        "status": "ok"
+      }
+    },
+    {
+      "topic": "devices/clean-1/heartbeat",
+      "payload": {
+        "seq": 3,
+        "ts": "2026-09-24T10:02:00Z",
+        "battery": 88,
+        "status": "warning"
+      }
+    }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "clean-1",
+        "seq": 3,
+        "ts": "2026-09-24T10:02:00Z",
+        "battery": 88,
+        "status": "warning"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "clean-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      },
+      {
+        "deviceId": "clean-1",
+        "seq": 2,
+        "ts": "2026-09-24T10:01:00Z",
+        "battery": 89,
+        "status": "ok"
+      },
+      {
+        "deviceId": "clean-1",
+        "seq": 3,
+        "ts": "2026-09-24T10:02:00Z",
+        "battery": 88,
+        "status": "warning"
+      }
+    ],
+    "rejects": []
+  }
+}

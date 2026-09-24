@@ -4,6 +4,8 @@ services:
     restart: unless-stopped
     ports:
       - '127.0.0.1:1883:1883'
+      # eval listener, see mosquitto/mosquitto.conf
+      - '127.0.0.1:1884:1884'
     volumes:
       - ./mosquitto:/mosquitto/config:ro
 

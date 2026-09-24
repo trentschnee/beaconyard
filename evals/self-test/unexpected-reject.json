@@ -1,0 +1,37 @@
+{
+  "name": "unexpected-reject",
+  "description": "Must fail on rejects only: it sends a malformed heartbeat but expects no rejects.",
+  "messages": [
+    {
+      "topic": "devices/st-unexpected-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    },
+    { "topic": "devices/st-unexpected-1/heartbeat", "raw": "not json" }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "st-unexpected-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "st-unexpected-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "rejects": []
+  }
+}

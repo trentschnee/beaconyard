@@ -16,8 +16,10 @@ Run each step from the repo root, even if an earlier one fails, then report a sh
 2. Typecheck. There's no Nx typecheck target, so run tsc directly:
 
    ```bash
-   for f in apps/*/tsconfig.app.json libs/*/tsconfig.lib.json; do echo "== $f"; npx tsc -p "$f" --noEmit; done
+   for f in apps/*/tsconfig.app.json libs/*/tsconfig.lib.json evals/tsconfig.json; do echo "== $f"; npx tsc -p "$f" --noEmit; done
    ```
+
+   `evals/tsconfig.json` covers the eval runner and its tests. Node runs those `.mts` files by stripping types without checking them (decisions/002-eval-runner.md), so this is their only typecheck.
 
    Skip `apps/web/tsconfig.spec.json`. It fails with TS5107 (`moduleResolution: node10`) regardless of the code, and jest covers the specs.
 

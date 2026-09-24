@@ -1,0 +1,15 @@
+{
+  "name": "missing-expect",
+  "description": "Must fail schema validation: it has no expect block.",
+  "messages": [
+    {
+      "topic": "devices/st-noexpect-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    }
+  ]
+}

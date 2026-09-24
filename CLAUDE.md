@@ -8,14 +8,16 @@ Beaconyard ingests telemetry from field devices over MQTT. Devices publish heart
 
 ## Commands
 
-Nx 23 + pnpm 11, single-package workspace: no npm scripts, no per-project `package.json`. Run Nx with `npx nx`. `pnpm nx` / `pnpm exec nx` print a pnpm dependency-check line to stdout first, which breaks `--json` output.
+Nx 23 + pnpm 11, single-package workspace: one npm script (`pnpm run eval`), no per-project `package.json`. Run Nx with `npx nx`. `pnpm nx` / `pnpm exec nx` print a pnpm dependency-check line to stdout first, which breaks `--json` output.
 
 - Everything: `npx nx run-many -t lint test build`
 - One project: `npx nx test contracts`, `npx nx lint web`, `npx nx build api`
 - One test file: `npx nx test web --testPathPatterns=app.spec` (Jest 30, so the old `--testPathPattern` errors). By name: `-t "<name>"`.
 - Typecheck: there is no typecheck target. Use `npx tsc -p apps/<app>/tsconfig.app.json --noEmit` or `npx tsc -p libs/<lib>/tsconfig.lib.json --noEmit`. `apps/web/tsconfig.spec.json` fails raw tsc with TS5107 (`moduleResolution: node10` is deprecated in TS 6) even though jest passes.
 - Serve: `npx nx serve api` (builds, then runs `dist/apps/api/main.js`), `npx nx serve web` (Angular dev server on :4200)
-- Local infra: `docker compose up -d` starts Mosquitto (1883, anonymous, dev only) and Mongo (27017).
+- Local infra: `docker compose up -d` starts Mosquitto (1883 for the api, 1884 for evals, isolated by `mount_point eval/`, anonymous, dev only) and Mongo (27017).
+- Evals: `pnpm run eval` runs every scenario in `evals/scenarios/`. `pnpm run eval -- <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
+- <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
 - Full gate before handing back: `/verify`
 
 ## Architecture

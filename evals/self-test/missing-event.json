@@ -1,0 +1,43 @@
+{
+  "name": "missing-event",
+  "description": "Must fail on events only: it expects an event for seq 2, which is never sent.",
+  "messages": [
+    {
+      "topic": "devices/st-event-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "st-event-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "st-event-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      },
+      {
+        "deviceId": "st-event-1",
+        "seq": 2,
+        "ts": "2026-09-24T10:01:00Z",
+        "battery": 89,
+        "status": "ok"
+      }
+    ],
+    "rejects": []
+  }
+}
