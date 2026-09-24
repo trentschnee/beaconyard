@@ -1,0 +1,36 @@
+{
+  "name": "wrong-battery",
+  "description": "Must fail on devices only: the expected state has battery 80 but the heartbeat sent 90.",
+  "messages": [
+    {
+      "topic": "devices/st-battery-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "st-battery-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 80,
+        "status": "ok"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "st-battery-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "rejects": []
+  }
+}

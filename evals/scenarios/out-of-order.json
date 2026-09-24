@@ -1,0 +1,99 @@
+{
+  "name": "out-of-order",
+  "description": "Live heartbeats and a replay that arrive out of order still store every seq, and state ends at the highest seq.",
+  "messages": [
+    {
+      "topic": "devices/ooo-1/heartbeat",
+      "payload": {
+        "seq": 3,
+        "ts": "2026-09-24T10:02:00Z",
+        "battery": 88,
+        "status": "ok"
+      }
+    },
+    {
+      "topic": "devices/ooo-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    },
+    {
+      "topic": "devices/ooo-1/heartbeat",
+      "payload": {
+        "seq": 2,
+        "ts": "2026-09-24T10:01:00Z",
+        "battery": 89,
+        "status": "ok"
+      }
+    },
+    {
+      "topic": "devices/ooo-1/replay",
+      "payload": [
+        {
+          "seq": 5,
+          "ts": "2026-09-24T10:04:00Z",
+          "battery": 86,
+          "status": "warning"
+        },
+        {
+          "seq": 4,
+          "ts": "2026-09-24T10:03:00Z",
+          "battery": 87,
+          "status": "ok"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "ooo-1",
+        "seq": 5,
+        "ts": "2026-09-24T10:04:00Z",
+        "battery": 86,
+        "status": "warning"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "ooo-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      },
+      {
+        "deviceId": "ooo-1",
+        "seq": 2,
+        "ts": "2026-09-24T10:01:00Z",
+        "battery": 89,
+        "status": "ok"
+      },
+      {
+        "deviceId": "ooo-1",
+        "seq": 3,
+        "ts": "2026-09-24T10:02:00Z",
+        "battery": 88,
+        "status": "ok"
+      },
+      {
+        "deviceId": "ooo-1",
+        "seq": 4,
+        "ts": "2026-09-24T10:03:00Z",
+        "battery": 87,
+        "status": "ok"
+      },
+      {
+        "deviceId": "ooo-1",
+        "seq": 5,
+        "ts": "2026-09-24T10:04:00Z",
+        "battery": 86,
+        "status": "warning"
+      }
+    ],
+    "rejects": []
+  }
+}

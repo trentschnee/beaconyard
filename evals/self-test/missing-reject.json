@@ -1,0 +1,41 @@
+{
+  "name": "missing-reject",
+  "description": "Must fail on rejects only: it expects a reject, but every message it sends is valid.",
+  "messages": [
+    {
+      "topic": "devices/st-reject-1/heartbeat",
+      "payload": {
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    }
+  ],
+  "expect": {
+    "devices": [
+      {
+        "deviceId": "st-reject-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "events": [
+      {
+        "deviceId": "st-reject-1",
+        "seq": 1,
+        "ts": "2026-09-24T10:00:00Z",
+        "battery": 90,
+        "status": "ok"
+      }
+    ],
+    "rejects": [
+      {
+        "topic": "devices/st-reject-1/heartbeat",
+        "reasonStartsWith": "payload is not valid JSON"
+      }
+    ]
+  }
+}
