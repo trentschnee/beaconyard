@@ -7,9 +7,11 @@ import {
   HEARTBEAT_TOPIC,
 } from './mqtt/handlers/heartbeat';
 import { createReplayHandler, REPLAY_TOPIC } from './mqtt/handlers/replay';
+import { createServer } from './server';
 import { createDeviceStore } from './store/devices';
 import { createEventStore } from './store/events';
 import { createRejectStore } from './store/rejects';
+import { createDashboardHub } from './ws/dashboard';
 
 const logger: Logger = console;
 
@@ -28,7 +30,22 @@ async function main() {
   await devices.ensureIndexes();
   await events.ensureIndexes();
 
-  const deps = { events, devices, rejects, logger };
+  // with the flag off there's no hub and nobody to tell about changes
+  const dashboard = config.dashboardEnabled
+    ? createDashboardHub({ devices, logger })
+    : undefined;
+  const onDeviceChanged = dashboard ? dashboard.publish : () => undefined;
+
+  // listen before ingest starts, so a port clash stops startup instead of
+  // leaving a half-running api
+  const server = await createServer({ logger, dashboard });
+  await server.listen({ host: config.httpHost, port: config.httpPort });
+  logger.info('http listening', {
+    address: server.addresses(),
+    dashboard: config.dashboardEnabled,
+  });
+
+  const deps = { events, devices, rejects, logger, onDeviceChanged };
   const mqtt = startMqtt(
     { url: config.mqttUrl, clientId: config.mqttClientId },
     logger,
@@ -41,6 +58,7 @@ async function main() {
   const shutdown = async (signal: string) => {
     logger.info('shutting down', { signal });
     try {
+      await server.close();
       await mqtt.endAsync();
       await mongo.close();
       process.exit(0);

@@ -1,4 +1,4 @@
-import { parseHeartbeat } from '@beaconyard/contracts';
+import { parseHeartbeat, type DeviceState } from '@beaconyard/contracts';
 import type { Logger } from '../../logger';
 import type { DeviceStore } from '../../store/devices';
 import type { EventStore } from '../../store/events';
@@ -14,6 +14,9 @@ export interface HeartbeatDeps {
   devices: Pick<DeviceStore, 'applyHeartbeat'>;
   rejects: Pick<RejectStore, 'insert'>;
   logger: Logger;
+  // called after a write that changed the device's state. Must not block;
+  // a throw is logged and ingest carries on.
+  onDeviceChanged: (state: DeviceState) => void;
 }
 
 export type HeartbeatHandler = (
@@ -26,6 +29,7 @@ export function createHeartbeatHandler({
   devices,
   rejects,
   logger,
+  onDeviceChanged,
 }: HeartbeatDeps): HeartbeatHandler {
   async function reject(topic: string, payload: string, reason: string) {
     logger.warn('heartbeat rejected', { topic, reason });
@@ -35,6 +39,19 @@ export function createHeartbeatHandler({
       logger.error('failed to store rejected heartbeat', {
         topic,
         reason,
+        err,
+      });
+    }
+  }
+
+  // by now the heartbeat is stored, so a broadcast failure only gets logged
+  function notify(topic: string, state: DeviceState) {
+    try {
+      onDeviceChanged(state);
+    } catch (err) {
+      logger.error('device broadcast failed', {
+        topic,
+        deviceId: state.deviceId,
         err,
       });
     }
@@ -67,7 +84,10 @@ export function createHeartbeatHandler({
       // the event write throws, state is left alone. Stale and duplicate seqs
       // are a no-op in both stores, not an error.
       await events.record(deviceId, [parsed.value]);
-      await devices.applyHeartbeat(deviceId, parsed.value);
+      const changed = await devices.applyHeartbeat(deviceId, parsed.value);
+      if (changed) {
+        notify(topic, changed);
+      }
     } catch (err) {
       logger.error('heartbeat handling failed', { topic, err });
     }

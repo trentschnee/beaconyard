@@ -41,6 +41,7 @@ describe('apiEnv', () => {
       MONGO_DB: 'beaconyard',
       MQTT_CLIENT_ID: 'beaconyard-api',
       MQTT_URL: 'mqtt://localhost:1883',
+      HTTP_PORT: '3000',
       PATH: '/usr/bin',
     });
     assert.deepEqual(env, {
@@ -48,6 +49,7 @@ describe('apiEnv', () => {
       MQTT_CLIENT_ID: 'beaconyard-eval',
       MQTT_URL: 'mqtt://localhost:1884',
       MONGO_URL: 'mongodb://localhost:27017',
+      HTTP_PORT: '0',
       PATH: '/usr/bin',
     });
   });
