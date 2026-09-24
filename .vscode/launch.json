@@ -15,7 +15,7 @@
       "skipFiles": ["<node_internals>/**"],
       "sourceMaps": true,
       "outFiles": [
-        "${workspaceFolder}/dist/apps/api/dist/**/*.(m|c|)js",
+        "${workspaceFolder}/dist/apps/api/**/*.(m|c|)js",
         "!**/node_modules/**"
       ]
     }
