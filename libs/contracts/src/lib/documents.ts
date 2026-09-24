@@ -19,6 +19,17 @@ export interface EventRecord {
   status: DeviceStatus;
 }
 
+// a device with no alert history counts as armed
+export type LowBatteryState = 'armed' | 'alerted';
+
+// `alertStates` collection: one document per device, unique on deviceId
+export interface AlertState {
+  deviceId: string;
+  // the last seq the low-battery rule applied
+  seq: number;
+  lowBattery: LowBatteryState;
+}
+
 // `rejects` collection: messages that failed validation
 export interface RejectedMessage {
   topic: string;

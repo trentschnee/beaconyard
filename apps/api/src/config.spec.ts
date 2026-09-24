@@ -10,6 +10,8 @@ describe('loadConfig', () => {
       dashboardEnabled: false,
       httpHost: '127.0.0.1',
       httpPort: 3000,
+      alertLowBatteryBelow: 15,
+      alertRearmAt: 20,
     });
   });
 
@@ -75,4 +77,62 @@ describe('loadConfig', () => {
       expect(() => loadConfig({ HTTP_PORT: value })).toThrow(/HTTP_PORT/);
     },
   );
+
+  it('S05-AT14: alert thresholds default to 15 and 20', () => {
+    const config = loadConfig({});
+    expect(config.alertLowBatteryBelow).toBe(15);
+    expect(config.alertRearmAt).toBe(20);
+  });
+
+  it('S05-AT14: reads ALERT_LOW_BATTERY_BELOW and ALERT_REARM_AT', () => {
+    const config = loadConfig({
+      ALERT_LOW_BATTERY_BELOW: '30',
+      ALERT_REARM_AT: '45',
+    });
+    expect(config.alertLowBatteryBelow).toBe(30);
+    expect(config.alertRearmAt).toBe(45);
+  });
+
+  it('S05-AT14: accepts thresholds at 0 and 100', () => {
+    const config = loadConfig({
+      ALERT_LOW_BATTERY_BELOW: '0',
+      ALERT_REARM_AT: '100',
+    });
+    expect(config.alertLowBatteryBelow).toBe(0);
+    expect(config.alertRearmAt).toBe(100);
+  });
+
+  describe.each(['ALERT_LOW_BATTERY_BELOW', 'ALERT_REARM_AT'])('%s', (name) => {
+    it.each(['abc', '-1', '101', '15.5', ' 15', '1e1'])(
+      'S05-AT14: rejects %p',
+      (value) => {
+        expect(() => loadConfig({ [name]: value })).toThrow(
+          new RegExp(`^${name} must be an integer from 0 to 100`),
+        );
+      },
+    );
+  });
+
+  it.each([
+    [
+      'ALERT_REARM_AT equal to ALERT_LOW_BATTERY_BELOW',
+      { ALERT_LOW_BATTERY_BELOW: '20', ALERT_REARM_AT: '20' },
+    ],
+    [
+      'ALERT_REARM_AT below ALERT_LOW_BATTERY_BELOW',
+      { ALERT_LOW_BATTERY_BELOW: '20', ALERT_REARM_AT: '10' },
+    ],
+    [
+      'ALERT_LOW_BATTERY_BELOW 20 against the default ALERT_REARM_AT',
+      { ALERT_LOW_BATTERY_BELOW: '20' },
+    ],
+    [
+      'ALERT_REARM_AT 15 against the default ALERT_LOW_BATTERY_BELOW',
+      { ALERT_REARM_AT: '15' },
+    ],
+  ])('S05-AT14: rejects %s', (_label, env) => {
+    expect(() => loadConfig(env)).toThrow(
+      /ALERT_REARM_AT .* must be greater than ALERT_LOW_BATTERY_BELOW/,
+    );
+  });
 });

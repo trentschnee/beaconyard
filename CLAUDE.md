@@ -18,7 +18,7 @@ Nx 23 + pnpm 11, single-package workspace: one npm script (`pnpm run eval`), no 
 - Local infra: `docker compose up -d` starts Mosquitto (1883 for the api, 1884 for evals, isolated by `mount_point eval/`, anonymous, dev only) and Mongo (27017).
 - Evals: `pnpm run eval` runs every scenario in `evals/scenarios/`. `pnpm run eval -- <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
 - Dashboard: `DASHBOARD_ENABLED=true npx nx serve api` and `npx nx serve web`, then open http://localhost:4200. The web dev server proxies `/ws` to the api on port 3000.
-- <file>` runs one. Needs local infra. `npx nx run evals:acceptance` tests the harness itself.
+- Config: every api setting is an env var read in `apps/api/src/config.ts`, with its default and validation. Invalid values fail startup.
 - Full gate before handing back: `/verify`
 
 ## Architecture
@@ -27,6 +27,7 @@ Nx 23 + pnpm 11, single-package workspace: one npm script (`pnpm run eval`), no 
   - `src/mqtt/handlers/`: one file per topic, each with a matching test
   - `src/store/`: all Mongo reads and writes
   - `src/ws/`: WebSocket server for the dashboard
+  - `src/alerts/`: alert rules, triggered by device state changes
 - `apps/web`: Angular 22, zoneless (no zone.js), standalone components, new file naming (`app.ts` / `App`, not `app.component.ts`), selector prefix `app`, SCSS.
 - `libs/contracts`: message and document types shared by api and web, imported as `@beaconyard/contracts`. The single definition of every message shape. No build target.
 - The browser never connects to MQTT. The api subscribes to MQTT, reconciles state in Mongo, and pushes updates to the browser over its own WebSocket endpoint.
@@ -75,6 +76,6 @@ Check your own work against this before handing back. The human reviews the diff
 
 ## Git
 
-- Never commit, push, or merge. The human commits after reviewing the diff.
+- Never stage, commit, push, or merge (`git add`, `git rm`, `git commit`, `git push`, `git merge` are denied in settings). The human stages and commits after reviewing the diff.
 - Branches: `spec/NN-short-name`, one per spec, squash-merged to `main`.
 - Commits: Conventional Commits scoped by spec. `feat(spec-NN): title` for spec work, `fix(spec-NN): title` for corrections found in review, `chore:` for tooling.
