@@ -1,1 +1,2 @@
-export * from './lib/contracts';
+export * from './lib/heartbeat';
+export * from './lib/documents';
