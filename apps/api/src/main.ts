@@ -2,8 +2,13 @@ import { MongoClient } from 'mongodb';
 import { loadConfig } from './config';
 import type { Logger } from './logger';
 import { startMqtt } from './mqtt/client';
-import { createHeartbeatHandler } from './mqtt/handlers/heartbeat';
+import {
+  createHeartbeatHandler,
+  HEARTBEAT_TOPIC,
+} from './mqtt/handlers/heartbeat';
+import { createReplayHandler, REPLAY_TOPIC } from './mqtt/handlers/replay';
 import { createDeviceStore } from './store/devices';
+import { createEventStore } from './store/events';
 import { createRejectStore } from './store/rejects';
 
 const logger: Logger = console;
@@ -16,16 +21,21 @@ async function main() {
   logger.info('mongo connected', { db: config.mongoDb });
 
   const devices = createDeviceStore(db);
+  const events = createEventStore(db);
+  const rejects = createRejectStore(db);
+  // before connecting: the broker hands over its queued backlog right after
+  // CONNACK, and the events index is what keeps those writes idempotent
   await devices.ensureIndexes();
+  await events.ensureIndexes();
 
+  const deps = { events, devices, rejects, logger };
   const mqtt = startMqtt(
-    config.mqttUrl,
+    { url: config.mqttUrl, clientId: config.mqttClientId },
     logger,
-    createHeartbeatHandler({
-      devices,
-      rejects: createRejectStore(db),
-      logger,
-    }),
+    {
+      [HEARTBEAT_TOPIC]: createHeartbeatHandler(deps),
+      [REPLAY_TOPIC]: createReplayHandler(deps),
+    },
   );
 
   const shutdown = async (signal: string) => {

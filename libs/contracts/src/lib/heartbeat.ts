@@ -45,8 +45,6 @@ function isDeviceStatus(value: unknown): value is DeviceStatus {
   return (DEVICE_STATUSES as readonly unknown[]).includes(value);
 }
 
-// Checks run in a fixed order (seq, ts, battery, status) and the first failure
-// is reported. Only the known fields are copied out, so extra keys are dropped.
 export function parseHeartbeat(raw: string): ParseResult<Heartbeat> {
   let data: unknown;
   try {
@@ -54,6 +52,13 @@ export function parseHeartbeat(raw: string): ParseResult<Heartbeat> {
   } catch {
     return { ok: false, reason: 'payload is not valid JSON' };
   }
+  return validateHeartbeat(data);
+}
+
+// For an already-parsed value, e.g. one entry of a replay batch. Checks run in
+// a fixed order (seq, ts, battery, status) and the first failure is reported.
+// Only the known fields are copied out, so extra keys are dropped.
+export function validateHeartbeat(data: unknown): ParseResult<Heartbeat> {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return { ok: false, reason: 'payload must be a JSON object' };
   }

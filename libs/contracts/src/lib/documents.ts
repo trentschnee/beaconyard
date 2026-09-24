@@ -9,6 +9,16 @@ export interface DeviceState {
   status: DeviceStatus;
 }
 
+// `events` collection: every unique heartbeat, live or replayed. Unique on
+// deviceId + seq. No server timestamps; ts is the device's event time.
+export interface EventRecord {
+  deviceId: string;
+  seq: number;
+  ts: string;
+  battery: number;
+  status: DeviceStatus;
+}
+
 // `rejects` collection: messages that failed validation
 export interface RejectedMessage {
   topic: string;
