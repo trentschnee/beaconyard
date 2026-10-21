@@ -4,7 +4,7 @@ Devices send heartbeats over MQTT. Beaconyard stores them, shows them on a live 
 
 Each device has a current state and a full history in MongoDB. Devices can go offline, save up their heartbeats, and send them all at once when they reconnect. Duplicates and messages that show up out of order don't change the result.
 
-I built this to practice the job I'm applying for. That job is mostly writing specs for a coding agent, directing it, and checking its work, not writing the code by hand. Claude Code wrote almost all of the code here. My part was deciding what each spec required, what the agent wasn't allowed to decide on its own, and what counted as done. I reviewed every plan before any code got written, and I kept a log of what my reviews caught.
+I built this to practice agentic development. Most of that work is writing specs for a coding agent and checking what it builds, not writing the code by hand. Claude Code wrote almost all of the code here. My part was deciding what each spec required, what the agent wasn't allowed to decide on its own, and what counted as done. I reviewed every plan before any code got written, and I kept a log of what my reviews caught.
 
 <p align="center">
   <img src="docs/media/dashboard.gif" width="800" alt="Beaconyard dashboard next to a terminal listening for alerts. A device's battery drops to 10% and one low-battery alert shows up. More low readings update the row but don't send another alert.">
@@ -119,4 +119,4 @@ CLAUDE.md         the agent's standing instructions
 REVIEW-LOG.md     what review caught
 ```
 
-Built by [@trentschnee](https://github.com/trentschnee) as a portfolio project for a Full Stack Agentic Development Engineer role.
+Built by [@trentschnee](https://github.com/trentschnee) as a portfolio project for agentic development roles.
